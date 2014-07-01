@@ -117,11 +117,11 @@ struct servo_control_data subsriberCheckTopic(bool *success) {
 	bool updated;
 	struct servo_control_data rd;
 
-	int poll_ret = poll(fds, 1, 2000);
+	int poll_ret = poll(fds, 1, 20000);
 	/* handle the poll result */
 	if (poll_ret == 0) {
 		/* this means none of our providers is giving us data */
-		printf("[servo_control] Got no data within 2 seconds\n");
+		// printf("[servo_control] Got no data within 2 seconds\n");
 	} else if (poll_ret < 0) {
 		/* this is seriously bad - should be an emergency */
 		/*if (error_counter < 10 || error_counter % 50 == 0) {
@@ -222,6 +222,14 @@ int servo_control_main(int argc, char *argv[])
 			publisherInit();
 			publisherUpdateTopic(pwm);
 		}
+		exit(0);
+	}
+
+	if (argc > 1 && !strcmp(argv[1], "test")) {
+		int pwm = 2100;
+		if (argc > 2)pwm = atol(argv[2]);
+		setup_servo();
+		control_servo(pwm_value);
 		exit(0);
 	}
 
@@ -375,5 +383,5 @@ static void servo_control_usage(const char *reason)
 {
 	if (reason)
 		warnx("%s\n", reason);
-	errx(1, "usage: servo_control {start|stop|status|set} [-p <additional params>]\n");
+	errx(1, "usage: servo_control {start|stop|status|set|test} [-p <additional params>]\n");
 }
