@@ -164,3 +164,9 @@ endef
 BUILTIN_COMMANDS := \
 	$(call _B, sercon,                 ,                          2048,  sercon_main                ) \
 	$(call _B, serdis,                 ,                          2048,  serdis_main                )
+
+
+#
+# Custom Apps
+#
+MODULES		+= modules/px4_test_app
