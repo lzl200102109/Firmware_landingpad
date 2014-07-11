@@ -170,3 +170,4 @@ BUILTIN_COMMANDS := \
 # Custom Apps
 #
 MODULES		+= modules/px4_test_app
+MODULES		+= modules/servo_control

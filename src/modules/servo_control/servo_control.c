@@ -70,7 +70,7 @@
 #include <uORB/uORB.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_attitude.h>
-
+#include <uORB/topics/vehicle_command.h>
 
 
 /* Publisher */
@@ -99,8 +99,10 @@ int publisherUpdateTopic(int r) {
 /* Subscriber */
 /* file handle that will be used for subscribing */
 static int sub_topic_handle;
+static int sub_topic_handle2;
 /* one could wait for multiple topics with this technique, just using one here */
 struct pollfd fds[] = {
+	{ .fd = 0,   .events = POLLIN },
 	{ .fd = 0,   .events = POLLIN },
 	/* there could be more file descriptors here, in the form like:
 	 * { .fd = other_sub_fd,   .events = POLLIN },
@@ -111,13 +113,15 @@ int subscriberInit() {
 	/* subscribe to the topic */
 	fds[0].fd = sub_topic_handle = orb_subscribe(ORB_ID(servo_control));
 	orb_set_interval(sub_topic_handle, 1000);
+	fds[1].fd = sub_topic_handle2 = orb_subscribe(ORB_ID(vehicle_command));
+	orb_set_interval(sub_topic_handle2, 1000);
 }
  
 struct servo_control_data subsriberCheckTopic(bool *success) {
 	bool updated;
 	struct servo_control_data rd;
 
-	int poll_ret = poll(fds, 1, 20000);
+	int poll_ret = poll(fds, 2, 20000);
 	/* handle the poll result */
 	if (poll_ret == 0) {
 		/* this means none of our providers is giving us data */
@@ -138,7 +142,28 @@ struct servo_control_data subsriberCheckTopic(bool *success) {
 			*success = true;
 			return rd;
 		}
+		if (fds[1].revents & POLLIN) {
+			//* copy sensors raw data into local buffer /
+			struct vehicle_command_s cmd;
+			memset(&cmd, 0, sizeof(cmd));
+
+			orb_copy(ORB_ID(vehicle_command), sub_topic_handle2, &cmd);
+
+			if (cmd.command == VEHICLE_CMD_DO_SET_SERVO) {
+				if (cmd.param1 == 1) {  // If servo 1
+					rd.r = cmd.param2;  // PWM microseconds ~1000-2000
+
+					*success = true;
+				} else {
+					*success = false;
+				}
+			} else {
+				*success = false;
+			}
+			return rd;
+		}
  	}
+
 	/* check to see whether the topic has updated since the last time we read it */
 	/*orb_check(sub_topic_handle, &updated);
  
@@ -169,7 +194,7 @@ static bool thread_running = false;		/**< daemon status flag */
 static int daemon_task;				/**< Handle of daemon task / thread */
 
 
-unsigned pwm_value = 2100;  // PWM pulse width
+unsigned pwm_value = 600;  // PWM pulse width
 
 
 int servo_control_main(int argc, char *argv[])

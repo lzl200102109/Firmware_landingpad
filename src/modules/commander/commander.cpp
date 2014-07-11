@@ -556,6 +556,11 @@ bool handle_command(struct vehicle_status_s *status, const struct safety_s *safe
 				result = VEHICLE_CMD_RESULT_TEMPORARILY_REJECTED;
 			}
 
+			// The VEHICLE_CMD_DO_SET_SERVO command is handled by the servo_control process
+			// if running.  This line tells the commander process not to beep and complain
+			// when it can't handle this command itself.
+			result = VEHICLE_CMD_RESULT_ACCEPTED;
+
 		}
 		break;
 
