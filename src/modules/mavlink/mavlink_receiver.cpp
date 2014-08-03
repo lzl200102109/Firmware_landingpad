@@ -172,6 +172,25 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		MavlinkFTP::getServer()->handle_message(_mavlink, msg);
 		break;
 
+    case MAVLINK_MSG_ID_LOCAL_POSITION_NED: // #32
+        mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
+        mavlink_log_info(mavlink_fd, "[myapp] get msg #32!!.");
+        handle_message_local_position_ned(msg);
+        break;
+
+/*	case MAVLINK_MSG_ID_SET_LOCAL_POSITION_SETPOINT: // #50
+        mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
+        mavlink_log_info(mavlink_fd, "[myapp] get msg #50!!.");
+        // handle_message_set_local_position_setpoint(msg);
+        break;
+
+    case MAVLINK_MSG_ID_LOCAL_POSITION_SETPOINT: // #51
+        mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
+        mavlink_log_info(mavlink_fd, "[myapp] get msg #51!!.");
+        // handle_message_local_position_setpoint(msg);
+        break;
+*/
+
 	default:
 		break;
 	}
@@ -504,6 +523,30 @@ MavlinkReceiver::handle_message_request_data_stream(mavlink_message_t *msg)
 			}
 		}
 	}
+}
+
+void
+MavlinkReceiver::handle_message_local_position_ned(mavlink_message_t *msg)
+{
+    mavlink_local_position_ned_t local_pos_ned;
+    mavlink_msg_local_position_ned_decode(msg, &local_pos_ned);
+
+    struct vehicle_local_position_s local_pos;
+    memset(&local_pos, 0, sizeof(local_pos));
+
+    local_pos.x = local_pos_ned.x;
+    local_pos.y = local_pos_ned.y;
+    local_pos.z = local_pos_ned.z;
+    local_pos.vx = local_pos_ned.vx;
+    local_pos.vy = local_pos_ned.vy;
+    local_pos.vz = local_pos_ned.vz;
+
+    if (_local_pos_pub < 0) {
+        _local_pos_pub = orb_advertise(ORB_ID(vehicle_local_position), &local_pos);
+
+    } else {
+        orb_publish(ORB_ID(vehicle_local_position), _local_pos_pub, &local_pos);
+    }
 }
 
 void
