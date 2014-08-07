@@ -80,6 +80,8 @@ __BEGIN_DECLS
 #include "mavlink_receiver.h"
 #include "mavlink_main.h"
 
+static int mavlink_fd;
+
 __END_DECLS
 
 static const float mg2ms2 = CONSTANTS_ONE_G / 1000.0f;
@@ -540,6 +542,17 @@ MavlinkReceiver::handle_message_local_position_ned(mavlink_message_t *msg)
     local_pos.vx = local_pos_ned.vx;
     local_pos.vy = local_pos_ned.vy;
     local_pos.vz = local_pos_ned.vz;
+
+    local_pos.xy_valid = true;
+	local_pos.v_xy_valid = true;
+	local_pos.xy_global = false;
+	local_pos.z_global = false;
+	local_pos.landed = false;
+	local_pos.yaw = 0;
+	local_pos.dist_bottom_valid = true;
+	local_pos.eph = 0;
+	local_pos.epv = 0;
+
 
     if (_local_pos_pub < 0) {
         _local_pos_pub = orb_advertise(ORB_ID(vehicle_local_position), &local_pos);
