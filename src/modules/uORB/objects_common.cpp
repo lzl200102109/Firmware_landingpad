@@ -109,6 +109,9 @@ ORB_DEFINE(vehicle_global_position, struct vehicle_global_position_s);
 #include "topics/vehicle_local_position.h"
 ORB_DEFINE(vehicle_local_position, struct vehicle_local_position_s);
 
+#include "topics/vehicle_local_position_system_global_offset.h"
+ORB_DEFINE(vehicle_local_position_system_global_offset, struct vehicle_local_position_system_global_offset_s);
+
 #include "topics/vehicle_vicon_position.h"
 ORB_DEFINE(vehicle_vicon_position, struct vehicle_vicon_position_s);
 

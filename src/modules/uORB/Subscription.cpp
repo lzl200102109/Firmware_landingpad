@@ -50,6 +50,7 @@
 #include "topics/manual_control_setpoint.h"
 #include "topics/vehicle_local_position_setpoint.h"
 #include "topics/vehicle_local_position.h"
+#include "topics/vehicle_local_position_system_global_offset.h"
 #include "topics/vehicle_attitude_setpoint.h"
 #include "topics/vehicle_rates_setpoint.h"
 
@@ -99,6 +100,7 @@ template class __EXPORT Subscription<vehicle_status_s>;
 template class __EXPORT Subscription<manual_control_setpoint_s>;
 template class __EXPORT Subscription<vehicle_local_position_setpoint_s>;
 template class __EXPORT Subscription<vehicle_local_position_s>;
+template class __EXPORT Subscription<vehicle_local_position_system_global_offset_s>;
 template class __EXPORT Subscription<vehicle_attitude_setpoint_s>;
 template class __EXPORT Subscription<vehicle_rates_setpoint_s>;
 
