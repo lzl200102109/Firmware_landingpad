@@ -54,7 +54,7 @@
  * Fused local position in NED.
  */
 struct vehicle_local_position_system_global_offset_s {
-	uint64_t timestamp;		/**< Time of this estimate, in microseconds since system start */
+	uint32_t timestamp;		/**< Time of this estimate, in microseconds since system start */
 	/* Position in local NED frame */
 	float x;				/**< X position in meters in NED earth-fixed frame */
 	float y;				/**< X position in meters in NED earth-fixed frame */
