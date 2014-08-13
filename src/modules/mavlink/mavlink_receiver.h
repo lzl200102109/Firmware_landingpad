@@ -50,6 +50,7 @@
 #include <uORB/topics/vehicle_gps_position.h>
 #include <uORB/topics/vehicle_global_position.h>
 #include <uORB/topics/vehicle_local_position.h>
+#include <uORB/topics/vehicle_local_position_system_global_offset.h>
 #include <uORB/topics/home_position.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/offboard_control_setpoint.h>
@@ -117,6 +118,8 @@ private:
 	void handle_message_manual_control(mavlink_message_t *msg);
 	void handle_message_heartbeat(mavlink_message_t *msg);
 	void handle_message_request_data_stream(mavlink_message_t *msg);
+	void handle_message_local_position_ned(mavlink_message_t *msg);
+	void handle_message_local_position_ned_system_global_offset(mavlink_message_t *msg);
 	void handle_message_hil_sensor(mavlink_message_t *msg);
 	void handle_message_hil_gps(mavlink_message_t *msg);
 	void handle_message_hil_state_quaternion(mavlink_message_t *msg);
@@ -128,6 +131,7 @@ private:
 	struct vehicle_control_mode_s _control_mode;
 	orb_advert_t _global_pos_pub;
 	orb_advert_t _local_pos_pub;
+	orb_advert_t _local_pos_glo_offset_pub;
 	orb_advert_t _attitude_pub;
 	orb_advert_t _gps_pub;
 	orb_advert_t _sensors_pub;

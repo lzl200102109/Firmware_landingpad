@@ -61,7 +61,6 @@
 #include <uORB/topics/vehicle_gps_position.h>
 #include <uORB/topics/home_position.h>
 #include <uORB/topics/optical_flow.h>
-#include <uORB/topics/vehicle_local_position_system_global_offset.h>
 #include <mavlink/mavlink_log.h>
 #include <poll.h>
 #include <systemlib/err.h>
@@ -326,13 +325,6 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 	int vehicle_gps_position_sub = orb_subscribe(ORB_ID(vehicle_gps_position));
 	int home_position_sub = orb_subscribe(ORB_ID(home_position));
 
-	/* the "vehicle_local_position_system_global_offset" topic
-	   is used to communicate local position from webcam
-	   (timestamp,x,y,z,yaw). */
-	struct vehicle_local_position_system_global_offset_s local_pos_coord;
-    memset(&local_pos_coord, 0, sizeof(local_pos_coord));
-    int vehicle_local_position_system_global_offset_sub = orb_subscribe(ORB_ID(vehicle_local_position_system_global_offset));
-
 	/* advertise */
 	orb_advert_t vehicle_local_position_pub = orb_advertise(ORB_ID(vehicle_local_position), &local_pos);
 	orb_advert_t vehicle_global_position_pub = -1;
@@ -583,14 +575,6 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 				}
 
 				flow_updates++;
-			}
-
-			/* camera coordinate */
-
-			orb_check(vehicle_local_position_system_global_offset_sub, &updated);
-
-			if (updated) {
-				orb_copy(ORB_ID(vehicle_local_position_system_global_offset), vehicle_local_position_system_global_offset_sub, &local_pos_coord);
 			}
 
 			/* home position */
@@ -1026,13 +1010,6 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			local_pos.dist_bottom_valid = dist_bottom_valid;
 			local_pos.eph = eph;
 			local_pos.epv = epv;
-
-			/* local position data from webcam */
-//			local_pos.timestamp = local_pos_coord.timestamp;
-//			local_pos.x = local_pos_coord.x;
-//			local_pos.y = local_pos_coord.y;
-//			local_pos.z = local_pos_coord.z;
-//			local_pos.yaw = local_pos_coord.yaw;
 
 			if (local_pos.dist_bottom_valid) {
 				local_pos.dist_bottom = -z_est[0] - surface_offset;

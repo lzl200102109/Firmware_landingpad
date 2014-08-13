@@ -61,6 +61,7 @@
 #include <uORB/topics/vehicle_gps_position.h>
 #include <uORB/topics/home_position.h>
 #include <uORB/topics/optical_flow.h>
+#include <uORB/topics/vehicle_local_position_system_global_offset.h>
 #include <mavlink/mavlink_log.h>
 #include <poll.h>
 #include <systemlib/err.h>
@@ -325,6 +326,13 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 	int vehicle_gps_position_sub = orb_subscribe(ORB_ID(vehicle_gps_position));
 	int home_position_sub = orb_subscribe(ORB_ID(home_position));
 
+	/* the "vehicle_local_position_system_global_offset" topic
+	   is used to communicate local position from webcam
+	   (timestamp,x,y,z,yaw). */
+	struct vehicle_local_position_system_global_offset_s local_pos_coord;
+    memset(&local_pos_coord, 0, sizeof(local_pos_coord));
+    int vehicle_local_position_system_global_offset_sub = orb_subscribe(ORB_ID(vehicle_local_position_system_global_offset));
+
 	/* advertise */
 	orb_advert_t vehicle_local_position_pub = orb_advertise(ORB_ID(vehicle_local_position), &local_pos);
 	orb_advert_t vehicle_global_position_pub = -1;
@@ -468,11 +476,27 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 				}
 			}
 
-			/* optical flow */
-			orb_check(optical_flow_sub, &updated);
+			/* optical flow & landing pad */
+			orb_check(optical_flow_sub, &updated);										// optical flow
+			if (updated)
+				orb_check(vehicle_local_position_system_global_offset_sub, &updated);	// landing pad
 
 			if (updated) {
-				orb_copy(ORB_ID(optical_flow), optical_flow_sub, &flow);
+				orb_copy(ORB_ID(optical_flow), optical_flow_sub, &flow);																			// optical flow
+				orb_copy(ORB_ID(vehicle_local_position_system_global_offset), vehicle_local_position_system_global_offset_sub, &local_pos_coord);	// landing pad
+
+				/* overwrite rotation matrix and from att, and ground_distance_m from flow */
+				att.yaw = local_pos_coord.yaw;
+				att.R[0][0] =  cos(att.yaw);
+				att.R[1][1] =  cos(att.yaw);
+				att.R[2][2] =  1;
+				att.R[0][1] = -sin(att.yaw);
+				att.R[1][0] =  sin(att.yaw);
+				att.R[0][2] = 0;
+				att.R[1][2] = 0;
+				att.R[2][0] = 0;
+				att.R[2][1] = 0;
+				flow.ground_distance_m = -local_pos_coord.z/1000;
 
 				/* calculate time from previous update */
 				float flow_dt = flow_prev > 0 ? (flow.flow_timestamp - flow_prev) * 1e-6f : 0.1f;
@@ -520,7 +544,7 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 				if (dist_bottom > 0.3f && flow_q > params.flow_q_min && (t < sonar_valid_time + sonar_valid_timeout) && att.R[2][2] > 0.7f) {
 					/* distance to surface */
 					float flow_dist = dist_bottom / att.R[2][2];
-					/* check if flow if too large for accurate measurements */
+					/* check if flow is too large for accurate measurements */
 					/* calculate estimated velocity in body frame */
 					float body_v_est[2] = { 0.0f, 0.0f };
 
@@ -1010,6 +1034,12 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			local_pos.dist_bottom_valid = dist_bottom_valid;
 			local_pos.eph = eph;
 			local_pos.epv = epv;
+
+			/* local position data from webcam */
+			local_pos.timestamp = local_pos_coord.timestamp;
+			local_pos.x = local_pos_coord.x;
+			local_pos.y = local_pos_coord.y;
+
 
 			if (local_pos.dist_bottom_valid) {
 				local_pos.dist_bottom = -z_est[0] - surface_offset;

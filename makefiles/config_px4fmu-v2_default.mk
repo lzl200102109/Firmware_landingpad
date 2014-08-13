@@ -134,6 +134,7 @@ MODULES		+= lib/launchdetection
 # Tutorial code from
 # https://pixhawk.ethz.ch/px4/dev/hello_sky
 MODULES		+= examples/px4_simple_app
+MODULES		+= examples/display
 
 # Tutorial code from
 # https://pixhawk.ethz.ch/px4/dev/daemon
