@@ -1106,6 +1106,9 @@ int commander_thread_main(int argc, char *argv[])
 		if (updated) {
 			/* position changed */
 			orb_copy(ORB_ID(vehicle_local_position), local_position_sub, &local_position);
+			local_position.xy_valid = true;
+		} else {
+			local_position.xy_valid = false;
 		}
 
 		/* update condition_global_position_valid */
@@ -1181,6 +1184,23 @@ int commander_thread_main(int argc, char *argv[])
 				local_eph_good = false;
 			}
 		}
+
+		// hardcoded "local_position.xy_valid" and "local_eph_good" for testing only
+		local_position.timestamp = hrt_absolute_time();
+//		local_position.xy_valid = true;
+		local_eph_good = true;
+
+		/* local position*/
+
+		/* check for timeout on LOCAL_POS topic */
+		hrt_abstime t = hrt_absolute_time();
+		if (local_position.xy_valid && t > local_position.timestamp + POSITION_TIMEOUT) {
+			local_position.xy_valid = true;
+			warnx("LOCAL_POS_NED timeout");
+			mavlink_log_info(mavlink_fd, "[inav] LOCAL_POS_NED timeout");
+		}
+
+
 		check_valid(local_position.timestamp, POSITION_TIMEOUT, local_position.xy_valid && local_eph_good, &(status.condition_local_position_valid), &status_changed);
 		check_valid(local_position.timestamp, POSITION_TIMEOUT, local_position.z_valid, &(status.condition_local_altitude_valid), &status_changed);
 
