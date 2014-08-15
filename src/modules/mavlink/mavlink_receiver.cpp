@@ -151,10 +151,6 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		handle_message_vicon_position_estimate(msg);
 		break;
 
-	case MAVLINK_MSG_ID_SET_QUAD_SWARM_ROLL_PITCH_YAW_THRUST:
-		handle_message_quad_swarm_roll_pitch_yaw_thrust(msg);
-		break;
-
 	case MAVLINK_MSG_ID_RADIO_STATUS:
 		handle_message_radio_status(msg);
 		break;
@@ -391,36 +387,6 @@ MavlinkReceiver::handle_message_vicon_position_estimate(mavlink_message_t *msg)
 }
 
 void
-MavlinkReceiver::handle_message_quad_swarm_roll_pitch_yaw_thrust(mavlink_message_t *msg)
-{
-	mavlink_set_quad_swarm_roll_pitch_yaw_thrust_t swarm_offboard_control;
-	mavlink_msg_set_quad_swarm_roll_pitch_yaw_thrust_decode(msg, &swarm_offboard_control);
-
-	/* Only accept system IDs from 1 to 4 */
-	if (mavlink_system.sysid >= 1 && mavlink_system.sysid <= 4) {
-		struct offboard_control_setpoint_s offboard_control_sp;
-		memset(&offboard_control_sp, 0, sizeof(offboard_control_sp));
-
-		/* Convert values * 1000 back */
-		offboard_control_sp.p1 = (float)swarm_offboard_control.roll[mavlink_system.sysid - 1] / 1000.0f;
-		offboard_control_sp.p2 = (float)swarm_offboard_control.pitch[mavlink_system.sysid - 1] / 1000.0f;
-		offboard_control_sp.p3 = (float)swarm_offboard_control.yaw[mavlink_system.sysid - 1] / 1000.0f;
-		offboard_control_sp.p4 = (float)swarm_offboard_control.thrust[mavlink_system.sysid - 1] / 1000.0f;
-
-		offboard_control_sp.mode = (enum OFFBOARD_CONTROL_MODE)swarm_offboard_control.mode;
-
-		offboard_control_sp.timestamp = hrt_absolute_time();
-
-		if (_offboard_control_sp_pub < 0) {
-			_offboard_control_sp_pub = orb_advertise(ORB_ID(offboard_control_setpoint), &offboard_control_sp);
-
-		} else {
-			orb_publish(ORB_ID(offboard_control_setpoint), _offboard_control_sp_pub, &offboard_control_sp);
-		}
-	}
-}
-
-void
 MavlinkReceiver::handle_message_radio_status(mavlink_message_t *msg)
 {
 	/* telemetry status supported only on first TELEMETRY_STATUS_ORB_ID_NUM mavlink channels */
@@ -543,6 +509,10 @@ MavlinkReceiver::handle_message_local_position_ned(mavlink_message_t *msg)
     struct vehicle_local_position_s local_pos;
     memset(&local_pos, 0, sizeof(local_pos));
 
+<<<<<<< HEAD
+    local_pos.timestamp = local_pos_ned.time_boot_ms;
+=======
+>>>>>>> james
     local_pos.x = local_pos_ned.x;
     local_pos.y = local_pos_ned.y;
     local_pos.z = local_pos_ned.z;
