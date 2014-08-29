@@ -509,10 +509,8 @@ MavlinkReceiver::handle_message_local_position_ned(mavlink_message_t *msg)
     struct vehicle_local_position_s local_pos;
     memset(&local_pos, 0, sizeof(local_pos));
 
-<<<<<<< HEAD
     local_pos.timestamp = local_pos_ned.time_boot_ms;
-=======
->>>>>>> james
+
     local_pos.x = local_pos_ned.x;
     local_pos.y = local_pos_ned.y;
     local_pos.z = local_pos_ned.z;
