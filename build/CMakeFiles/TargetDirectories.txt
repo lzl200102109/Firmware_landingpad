@@ -1,0 +1,4 @@
+/home/zhilong/Firmware/build/CMakeFiles/clean_test_results.dir
+/home/zhilong/Firmware/build/CMakeFiles/doxygen.dir
+/home/zhilong/Firmware/build/CMakeFiles/run_tests.dir
+/home/zhilong/Firmware/build/CMakeFiles/tests.dir

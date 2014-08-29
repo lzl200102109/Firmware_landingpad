@@ -24,7 +24,7 @@
  * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
  * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+ * OF USE, local_pos_cam, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
  * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
@@ -33,7 +33,7 @@
  ****************************************************************************/
 
 /**
- * @file px4_simple_app.c
+ * @file display.c
  * Minimal application example for PX4 autopilot
  */
 
@@ -46,17 +46,26 @@
 #include <uORB/uORB.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_attitude.h>
+#include <uORB/topics/optical_flow.h>
 #include <uORB/topics/vehicle_local_position_system_global_offset.h>
 
-__EXPORT int px4_simple_app_main(int argc, char *argv[]);
+__EXPORT int display_main(int argc, char *argv[]);
 
-int px4_simple_app_main(int argc, char *argv[])
+int display_main(int argc, char *argv[])
 {
-	printf("Hello Sky!\n");
+//	printf("Hello Sky!\n");
 
 	/* subscribe to vehicle_local_position_system_global_offset*/
-	int sensor_sub_fd = orb_subscribe(ORB_ID(vehicle_local_position_system_global_offset));
-	orb_set_interval(sensor_sub_fd, 1000);
+
+	int optical_flow_sub = orb_subscribe(ORB_ID(optical_flow));
+	int vehicle_local_position_system_global_offset_sub = orb_subscribe(ORB_ID(vehicle_local_position_system_global_offset));
+	int vehicle_attitude_sub = orb_subscribe(ORB_ID(vehicle_attitude));
+
+	struct vehicle_local_position_system_global_offset_s local_pos_cam;
+	struct optical_flow_s local_pos_flow;
+	struct vehicle_attitude_s att;
+
+	orb_set_interval(vehicle_local_position_system_global_offset_sub, 1000);
 
 	/* advertise attitude topic */
 	//struct vehicle_attitude_s att;
@@ -65,7 +74,7 @@ int px4_simple_app_main(int argc, char *argv[])
 
 	/* one could wait for multiple topics with this technique, just using one here */
 	struct pollfd fds[] = {
-		{ .fd = sensor_sub_fd,   .events = POLLIN },
+		{ .fd = vehicle_local_position_system_global_offset_sub,   .events = POLLIN },
 		/* there could be more file descriptors here, in the form like:
 		 * { .fd = other_sub_fd,   .events = POLLIN },
 		 */
@@ -79,31 +88,35 @@ int px4_simple_app_main(int argc, char *argv[])
 	 
 		/* handle the poll result */
 		if (poll_ret == 0) {
-			/* this means none of our providers is giving us data */
-			printf("[px4_simple_app] Got no data within a second\n");
+			/* this means none of our providers is giving us local_pos_cam */
+			printf("[display] Got no local_pos_cam within a second\n");
 		} else if (poll_ret < 0) {
 			/* this is seriously bad - should be an emergency */
 			if (error_counter < 10 || error_counter % 50 == 0) {
 				/* use a counter to prevent flooding (and slowing us down) */
-				printf("[px4_simple_app] ERROR return value from poll(): %d\n"
+				printf("[display] ERROR return value from poll(): %d\n"
 					, poll_ret);
 			}
 			error_counter++;
 		} else {
 	 
 			if (fds[0].revents & POLLIN) {
-				/* obtained data for the first file descriptor */
+				/* obtained local_pos_cam for the first file descriptor */
 
 				//up till here
-				struct vehicle_local_position_system_global_offset_s data;
-				/* copy sensors raw data into local buffer */
-				orb_copy(ORB_ID(vehicle_local_position_system_global_offset), sensor_sub_fd, &data);
-				printf("[px4_simple_app] timestamp: %d, x: %8.4f, y: %8.4f, z: %8.4f, yaw: %8.4f\n",
-					data.timestamp,
-					(double)data.x,
-					(double)data.y,
-					(double)data.z,
-					(double)data.yaw);
+
+				/* copy sensors raw local_pos_cam into local buffer */
+				orb_copy(ORB_ID(vehicle_local_position_system_global_offset), vehicle_local_position_system_global_offset_sub, &local_pos_cam);
+				orb_copy(ORB_ID(optical_flow), optical_flow_sub, &local_pos_flow);
+				orb_copy(ORB_ID(vehicle_attitude), vehicle_attitude_sub, &att);
+
+				printf("[display] timestamp: %d %d, z: %8.4f %8.4f, yaw: %8.4f %8.4f,\n",
+					local_pos_cam.timestamp,
+					local_pos_flow.timestamp,
+					(double)local_pos_cam.z,
+					(double)local_pos_flow.ground_distance_m*-1000,
+					(double)local_pos_cam.yaw,
+					(double)att.yaw);
 
 				//\t%8.4f
 
