@@ -57,7 +57,6 @@
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_local_position.h>
-#include <uORB/topics/vehicle_local_position_system_global_offset.h>
 #include <uORB/topics/vehicle_global_position.h>
 #include <uORB/topics/vehicle_gps_position.h>
 #include <uORB/topics/home_position.h>
@@ -190,13 +189,6 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 	struct vehicle_local_position_s local_pos;
 	memset(&local_pos, 0, sizeof(local_pos));
 
-	/* the "vehicle_local_position_system_global_offset" topic
-	   is used to communicate local position from webcam
-	   (timestamp,x,y,z,yaw). */
-	struct vehicle_local_position_system_global_offset_s local_pos_coord;
-	memset(&local_pos_coord, 0, sizeof(local_pos_coord));
-    int vehicle_local_position_system_global_offset_sub = orb_subscribe(ORB_ID(vehicle_local_position_system_global_offset));
-
 	/* subscribe */
 	int vehicle_attitude_sub = orb_subscribe(ORB_ID(vehicle_attitude));
 
@@ -210,12 +202,6 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 		{ .fd = vehicle_attitude_sub, .events = POLLIN },
 	};
 
-	// test frequency
-	hrt_abstime t1 = 0;
-	hrt_abstime t2 = 0;
-	float freq;
-	bool updated;
-
 	while (!thread_should_exit) {
 		int ret = poll(fds, 1, 20); // wait maximal 20 ms = 50 Hz minimum rate
 		hrt_abstime t = hrt_absolute_time();
@@ -228,23 +214,6 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			/* vehicle attitude */
 			orb_copy(ORB_ID(vehicle_attitude), vehicle_attitude_sub, &att);
 			attitude_updates++;
-		}
-
-		/* landing pad */
-		orb_check(vehicle_local_position_system_global_offset_sub, &updated);	// landing pad
-		if (updated) {
-
-			 orb_copy(ORB_ID(vehicle_local_position_system_global_offset), vehicle_local_position_system_global_offset_sub, &local_pos_coord);	// landing pad
-
-			t1 = hrt_absolute_time();
-
-			if (t2 != 0) {
-				freq = 1000000 / (t1-t2);
-
-				printf("freq = %6.2f, Hz \n\n", (double)freq);
-			}
-
-			t2 = t1;
 		}
 
 
