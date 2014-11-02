@@ -57,11 +57,11 @@
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_local_position.h>
+#include <uORB/topics/vehicle_local_position_system_global_offset.h>
 #include <uORB/topics/vehicle_global_position.h>
 #include <uORB/topics/vehicle_gps_position.h>
 #include <uORB/topics/home_position.h>
 #include <uORB/topics/optical_flow.h>
-#include <uORB/topics/vehicle_local_position_system_global_offset.h>
 #include <mavlink/mavlink_log.h>
 #include <poll.h>
 #include <systemlib/err.h>
@@ -218,9 +218,6 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 	float y_est[2] = { 0.0f, 0.0f };	// pos, vel
 	float z_est[2] = { 0.0f, 0.0f };	// pos, vel
 
-	float flow_m[3];
-//	float flow_v[2] = { 0.0f, 0.0f };
-
 	float est_buf[EST_BUF_SIZE][3][2];	// estimated position buffer
 	float R_buf[EST_BUF_SIZE][3][3];	// rotation matrix buffer
 	float R_gps[3][3];					// rotation matrix for GPS correction moment
@@ -290,7 +287,7 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 	float w_flow = 0.0f;
 
 	float sonar_prev = 0.0f;
-//	hrt_abstime flow_prev = 0;			// time of last flow measurement
+	hrt_abstime flow_prev = 0;			// time of last flow measurement
 	hrt_abstime sonar_time = 0;			// time of last sonar measurement (not filtered)
 	hrt_abstime sonar_valid_time = 0;	// time of last sonar measurement used for correction (filtered)
 
@@ -333,7 +330,7 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 	   is used to communicate local position from webcam
 	   (timestamp,x,y,z,yaw). */
 	struct vehicle_local_position_system_global_offset_s local_pos_coord;
-    memset(&local_pos_coord, 0, sizeof(local_pos_coord));
+	memset(&local_pos_coord, 0, sizeof(local_pos_coord));
     int vehicle_local_position_system_global_offset_sub = orb_subscribe(ORB_ID(vehicle_local_position_system_global_offset));
 
 	/* advertise */
@@ -399,6 +396,11 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 		{ .fd = vehicle_attitude_sub, .events = POLLIN },
 	};
 
+	// test frequency
+	hrt_abstime t1 = 0;
+	hrt_abstime t2 = 0;
+	float freq;
+
 	while (!thread_should_exit) {
 		int ret = poll(fds, 1, 20); // wait maximal 20 ms = 50 Hz minimum rate
 		hrt_abstime t = hrt_absolute_time();
@@ -414,9 +416,6 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			/* vehicle attitude */
 			orb_copy(ORB_ID(vehicle_attitude), vehicle_attitude_sub, &att);
 			attitude_updates++;
-
-			// modify the yaw to the webcam coord.
-			att.yaw = local_pos_coord.yaw;
 
 			bool updated;
 
@@ -482,163 +481,130 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 				}
 			}
 
-			/* optical flow & landing pad */
-			orb_check(optical_flow_sub, &updated);										// optical flow
+			/* landing pad */
+			orb_check(vehicle_local_position_system_global_offset_sub, &updated);	// landing pad
+			if (updated) {
+
+				 orb_copy(ORB_ID(vehicle_local_position_system_global_offset), vehicle_local_position_system_global_offset_sub, &local_pos_coord);	// landing pad
+
+				t1 = hrt_absolute_time();
+
+				if (t2 != 0) {
+					freq = 1000000 / (t1-t2);
+
+					printf("freq = %6.2fHz \n\n", (double)freq);
+				}
+
+				t2 = t1;
+			}
+
+			/* optical flow */
+			orb_check(optical_flow_sub, &updated);
 
 			if (updated) {
-				orb_copy(ORB_ID(optical_flow), optical_flow_sub, &flow);																			// optical flow
-				orb_check(vehicle_local_position_system_global_offset_sub, &updated);	// landing pad
-				if (updated) {
-					orb_copy(ORB_ID(vehicle_local_position_system_global_offset), vehicle_local_position_system_global_offset_sub, &local_pos_coord);	// landing pad
+				orb_copy(ORB_ID(optical_flow), optical_flow_sub, &flow);
 
-					/* overwrite rotation matrix and from att, and ground_distance_m from flow */
-					att.yaw = local_pos_coord.yaw;
-					att.R[0][0] =  cos(att.yaw);	att.R[0][1] = -sin(att.yaw);	att.R[0][2] =  0;
-					att.R[1][0] =  sin(att.yaw);	att.R[1][1] =  cos(att.yaw);	att.R[1][2] =  0;
-	//				att.R[0][0] =  1.0f;			att.R[0][1] =  0.0f;			att.R[0][2] =  0.0f;
-	//				att.R[1][0] =  0.0f;			att.R[1][1] =  1.0f;			att.R[1][2] =  0.0f;
-					att.R[2][0] =  0.0f;			att.R[2][1] =  0.0f;			att.R[2][2] =  1.0f;
+				/* calculate time from previous update */
+				float flow_dt = flow_prev > 0 ? (flow.flow_timestamp - flow_prev) * 1e-6f : 0.1f;
+				flow_prev = flow.flow_timestamp;
 
-					flow.ground_distance_m = -local_pos_coord.z;
+				if ((flow.ground_distance_m > 0.31f) &&
+					(flow.ground_distance_m < 4.0f) &&
+					(att.R[2][2] > 0.7f) &&
+					(fabsf(flow.ground_distance_m - sonar_prev) > FLT_EPSILON)) {
 
-					/* calculate time from previous update */
-	//				float flow_dt = flow_prev > 0 ? (flow.flow_timestamp - flow_prev) * 1e-6f : 0.1f;
-	//				flow_prev = flow.flow_timestamp;
+					sonar_time = t;
+					sonar_prev = flow.ground_distance_m;
+					corr_sonar = flow.ground_distance_m + surface_offset + z_est[0];
+					corr_sonar_filtered += (corr_sonar - corr_sonar_filtered) * params.sonar_filt;
 
-					if ((flow.ground_distance_m > 0.31f) &&
-						(flow.ground_distance_m < 4.0f) &&
-						(att.R[2][2] > 0.7f) &&
-						(fabsf(flow.ground_distance_m - sonar_prev) > FLT_EPSILON)) {
-
-						sonar_time = t;
-						sonar_prev = flow.ground_distance_m;
-						corr_sonar = flow.ground_distance_m + surface_offset + z_est[0];
-						corr_sonar_filtered += (corr_sonar - corr_sonar_filtered) * params.sonar_filt;
-
-						if (fabsf(corr_sonar) > params.sonar_err) {
-							/* correction is too large: spike or new ground level? */
-							if (fabsf(corr_sonar - corr_sonar_filtered) > params.sonar_err) {
-								/* spike detected, ignore */
-								corr_sonar = 0.0f;
-								sonar_valid = false;
-
-							} else {
-								/* new ground level */
-								surface_offset -= corr_sonar;
-								surface_offset_rate = 0.0f;
-								corr_sonar = 0.0f;
-								corr_sonar_filtered = 0.0f;
-								sonar_valid_time = t;
-								sonar_valid = true;
-								local_pos.surface_bottom_timestamp = t;
-								mavlink_log_info(mavlink_fd, "[inav] new surface level: %.2f", (double)surface_offset);
-							}
+					if (fabsf(corr_sonar) > params.sonar_err) {
+						/* correction is too large: spike or new ground level? */
+						if (fabsf(corr_sonar - corr_sonar_filtered) > params.sonar_err) {
+							/* spike detected, ignore */
+							corr_sonar = 0.0f;
+							sonar_valid = false;
 
 						} else {
-							/* correction is ok, use it */
+							/* new ground level */
+							surface_offset -= corr_sonar;
+							surface_offset_rate = 0.0f;
+							corr_sonar = 0.0f;
+							corr_sonar_filtered = 0.0f;
 							sonar_valid_time = t;
 							sonar_valid = true;
+							local_pos.surface_bottom_timestamp = t;
+							mavlink_log_info(mavlink_fd, "[inav] new surface level: %.2f", (double)surface_offset);
 						}
-					}
-
-					float flow_q = flow.quality / 255.0f;
-					float dist_bottom = - z_est[0] - surface_offset;
-
-					if (dist_bottom > 0.3f && flow_q > params.flow_q_min && (t < sonar_valid_time + sonar_valid_timeout) && att.R[2][2] > 0.7f) {
-						/* distance to surface */
-						float flow_dist = dist_bottom / att.R[2][2];
-						/* check if flow is too large for accurate measurements */
-						/* calculate estimated velocity in body frame */
-						float body_v_est[2] = { 0.0f, 0.0f };
-
-						for (int i = 0; i < 2; i++) {
-							body_v_est[i] = att.R[0][i] * x_est[1] + att.R[1][i] * y_est[1] + att.R[2][i] * z_est[1];
-						}
-
-						/* set this flag if flow should be accurate according to current velocity and attitude rate estimate */
-						flow_accurate = fabsf(body_v_est[1] / flow_dist - att.rollspeed) < max_flow &&
-								fabsf(body_v_est[0] / flow_dist + att.pitchspeed) < max_flow;
-
-						/* convert raw flow to angular flow (rad/s) */
-	//					float flow_ang[2];
-	//					flow_ang[0] = flow.flow_raw_x * params.flow_k / 1000.0f / flow_dt;
-	//					flow_ang[1] = flow.flow_raw_y * params.flow_k / 1000.0f / flow_dt;
-
-						/* flow measurements vector */
-	//					float flow_m[3];						// comment line 221 if this line is uncommented.
-	//					flow_m[0] = -flow_ang[0] * flow_dist;
-	//					flow_m[1] = -flow_ang[1] * flow_dist;
-						flow_m[0] = flow.flow_comp_x_m;
-						flow_m[1] = flow.flow_comp_y_m;
-						flow_m[2] = z_est[1];
-
-						/* velocity in NED */
-						float flow_v[2] = { 0.0f, 0.0f };		// comment line 222 and 1065 if this line is uncommented.
-
-						/* project measurements vector to NED basis, skip Z component */
-						for (int i = 0; i < 2; i++) {
-							for (int j = 0; j < 3; j++) {
-								flow_v[i] += att.R[i][j] * flow_m[j];
-							}
-						}
-
-
-	/*******************************************************************************************************/
-
-						// ***************** debug flow_v ***************************
-	//					printf("R = \n %10.4f %10.4f %10.4f\n %10.4f %10.4f %10.4f\n",
-	//						 (double)att.R[0][0], (double)att.R[0][1], (double)att.R[0][2]
-	//						,(double)att.R[1][0], (double)att.R[1][1], (double)att.R[1][2]
-	//						,(double)att.R[2][0], (double)att.R[2][1], (double)att.R[2][2]
-	//						                                                         );
-	//					printf(" flow_m[0], %6.4f, flow_m[1], %6.4f, flow_v[0]: %6.4f, flow_v[1]: %6.4f, yaw: %6.4f cos: %6.4f sin: %6.4f \n\n\n",
-	//							(double)flow_m[0], (double)flow_m[1],			// BODY
-	//							(double)flow_v[0], (double)flow_v[1],			// NED
-	//							(double)att.yaw,
-	//							(double)cos(att.yaw), (double)sin(att.yaw));
-
-						/*print local_pos message in screen console*/
-	//					printf("x: %6.5f, y: %6.5f, z: %6.5f, vx: %6.5f, vy: %6.5f, vz: %6.5f, vx_b: %6.5f, vy_b: %6.5f, yaw: %6.5f,\n",
-	//							(double)local_pos.x, (double)local_pos.y, (double)local_pos.z,
-	//							(double)local_pos.vx, (double)local_pos.vy, (double)local_pos.vz,
-	//							(double)flow_m[0], (double)flow_m[1],
-	//							(double)local_pos.yaw);
-
-
-
-	/*******************************************************************************************************/
-
-
-
-						local_pos.vx = flow_v[0];
-						local_pos.vy = flow_v[1];
-
-						/* velocity correction */
-						corr_flow[0] = flow_v[0] - x_est[1];
-						corr_flow[1] = flow_v[1] - y_est[1];
-
-						/* adjust correction weight */
-						float flow_q_weight = (flow_q - params.flow_q_min) / (1.0f - params.flow_q_min);
-						w_flow = att.R[2][2] * flow_q_weight / fmaxf(1.0f, flow_dist);
-
-						/* if flow is not accurate, reduce weight for it */
-						// TODO make this more fuzzy
-						if (!flow_accurate) {
-							w_flow *= 0.05f;
-						}
-
-						/* under ideal conditions, on 1m distance assume EPH = 10cm */
-						eph_flow = 0.1f / w_flow;
-
-						flow_valid = true;
 
 					} else {
-						w_flow = 0.0f;
-						flow_valid = false;
+						/* correction is ok, use it */
+						sonar_valid_time = t;
+						sonar_valid = true;
+					}
+				}
+
+				float flow_q = flow.quality / 255.0f;
+				float dist_bottom = - z_est[0] - surface_offset;
+
+				if (dist_bottom > 0.3f && flow_q > params.flow_q_min && (t < sonar_valid_time + sonar_valid_timeout) && att.R[2][2] > 0.7f) {
+					/* distance to surface */
+					float flow_dist = dist_bottom / att.R[2][2];
+					/* check if flow if too large for accurate measurements */
+					/* calculate estimated velocity in body frame */
+					float body_v_est[2] = { 0.0f, 0.0f };
+
+					for (int i = 0; i < 2; i++) {
+						body_v_est[i] = att.R[0][i] * x_est[1] + att.R[1][i] * y_est[1] + att.R[2][i] * z_est[1];
 					}
 
-					flow_updates++;
+					/* set this flag if flow should be accurate according to current velocity and attitude rate estimate */
+					flow_accurate = fabsf(body_v_est[1] / flow_dist - att.rollspeed) < max_flow &&
+							fabsf(body_v_est[0] / flow_dist + att.pitchspeed) < max_flow;
+
+					/* convert raw flow to angular flow (rad/s) */
+					float flow_ang[2];
+					flow_ang[0] = flow.flow_raw_x * params.flow_k / 1000.0f / flow_dt;
+					flow_ang[1] = flow.flow_raw_y * params.flow_k / 1000.0f / flow_dt;
+					/* flow measurements vector */
+					float flow_m[3];
+					flow_m[0] = -flow_ang[0] * flow_dist;
+					flow_m[1] = -flow_ang[1] * flow_dist;
+					flow_m[2] = z_est[1];
+					/* velocity in NED */
+					float flow_v[2] = { 0.0f, 0.0f };
+
+					/* project measurements vector to NED basis, skip Z component */
+					for (int i = 0; i < 2; i++) {
+						for (int j = 0; j < 3; j++) {
+							flow_v[i] += att.R[i][j] * flow_m[j];
+						}
+					}
+
+					/* velocity correction */
+					corr_flow[0] = flow_v[0] - x_est[1];
+					corr_flow[1] = flow_v[1] - y_est[1];
+					/* adjust correction weight */
+					float flow_q_weight = (flow_q - params.flow_q_min) / (1.0f - params.flow_q_min);
+					w_flow = att.R[2][2] * flow_q_weight / fmaxf(1.0f, flow_dist);
+
+					/* if flow is not accurate, reduce weight for it */
+					// TODO make this more fuzzy
+					if (!flow_accurate) {
+						w_flow *= 0.05f;
+					}
+
+					/* under ideal conditions, on 1m distance assume EPH = 10cm */
+					eph_flow = 0.1f / w_flow;
+
+					flow_valid = true;
+
+				} else {
+					w_flow = 0.0f;
+					flow_valid = false;
 				}
+
+				flow_updates++;
 			}
 
 			/* home position */
@@ -1063,24 +1029,17 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			local_pos.v_xy_valid = can_estimate_xy;
 			local_pos.xy_global = local_pos.xy_valid && use_gps_xy;
 			local_pos.z_global = local_pos.z_valid && use_gps_z;
-//			local_pos.x = x_est[0];
-//			local_pos.vx = x_est[1];
-//			local_pos.y = y_est[0];
-//			local_pos.vy = y_est[1];
-//			local_pos.z = z_est[0];
+			local_pos.x = x_est[0];
+			local_pos.vx = x_est[1];
+			local_pos.y = y_est[0];
+			local_pos.vy = y_est[1];
+			local_pos.z = z_est[0];
 			local_pos.vz = z_est[1];
 			local_pos.landed = landed;
 			local_pos.yaw = att.yaw;
 			local_pos.dist_bottom_valid = dist_bottom_valid;
 			local_pos.eph = eph;
 			local_pos.epv = epv;
-
-			/* local position data from webcam */
-			local_pos.timestamp = local_pos_coord.timestamp;
-			local_pos.x = local_pos_coord.x;
-			local_pos.y = local_pos_coord.y;
-			local_pos.z = local_pos_coord.z;
-
 
 			if (local_pos.dist_bottom_valid) {
 				local_pos.dist_bottom = -z_est[0] - surface_offset;

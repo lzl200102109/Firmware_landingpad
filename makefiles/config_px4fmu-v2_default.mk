@@ -83,14 +83,14 @@ MODULES		+= modules/attitude_estimator_ekf
 MODULES		+= modules/attitude_estimator_so3
 MODULES		+= modules/ekf_att_pos_estimator
 MODULES		+= modules/position_estimator_inav
-MODULES		+= examples/flow_position_estimator
+#MODULES		+= examples/flow_position_estimator
 
 #
 # Vehicle Control
 #
 #MODULES		+= modules/segway # XXX Needs GCC 4.7 fix
-MODULES		+= modules/fw_pos_control_l1
-MODULES		+= modules/fw_att_control
+#MODULES		+= modules/fw_pos_control_l1
+#MODULES		+= modules/fw_att_control
 MODULES		+= modules/mc_att_control
 MODULES		+= modules/mc_pos_control
 
