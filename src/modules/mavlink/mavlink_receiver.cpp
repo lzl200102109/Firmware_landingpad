@@ -134,6 +134,8 @@ MavlinkReceiver::~MavlinkReceiver()
 void
 MavlinkReceiver::handle_message(mavlink_message_t *msg)
 {
+	static float yaw = (float)99.9;
+
 	switch (msg->msgid) {
 	case MAVLINK_MSG_ID_COMMAND_LONG:
 		handle_message_command_long(msg);
@@ -180,15 +182,17 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		break;
 
     case MAVLINK_MSG_ID_LOCAL_POSITION_NED: // #32
-        mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
-        mavlink_log_info(mavlink_fd, "[myapp] get msg #32!!.");
-        handle_message_local_position_ned(msg);
+    	if (yaw != (float)99.9) {
+			mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
+			mavlink_log_info(mavlink_fd, "[myapp] get msg #32!!.");
+			handle_message_local_position_ned(msg, yaw);
+    	}
         break;
 
     case MAVLINK_MSG_ID_LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET: // abused #89 (same function as #32)
         mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
         mavlink_log_info(mavlink_fd, "[myapp] get msg #89!!.");
-        handle_message_local_position_ned_system_global_offset(msg);
+        yaw = handle_message_local_position_ned_system_global_offset(msg);
         break;
 
 /*	case MAVLINK_MSG_ID_SET_LOCAL_POSITION_SETPOINT: // #50
@@ -592,11 +596,48 @@ MavlinkReceiver::handle_message_request_data_stream(mavlink_message_t *msg)
 	}
 }
 
+//void
+//MavlinkReceiver::handle_message_local_position_ned(mavlink_message_t *msg)
+//{
+//    mavlink_local_position_ned_t local_pos_ned;
+//    mavlink_msg_local_position_ned_decode(msg, &local_pos_ned);
+//
+//    struct vehicle_local_position_s local_pos;
+//    memset(&local_pos, 0, sizeof(local_pos));
+//
+//    local_pos.timestamp = local_pos_ned.time_boot_ms;
+//
+//    local_pos.x = local_pos_ned.x;
+//    local_pos.y = local_pos_ned.y;
+//    local_pos.z = local_pos_ned.z;
+//    local_pos.vx = local_pos_ned.vx;
+//    local_pos.vy = local_pos_ned.vy;
+//    local_pos.vz = local_pos_ned.vz;
+//	local_pos.yaw = 0;	//local_pos_ned_system_global_offset.yaw;
+//
+//    local_pos.xy_valid = true;
+//	local_pos.v_xy_valid = true;
+//	local_pos.xy_global = false;
+//	local_pos.z_global = false;
+//	local_pos.landed = false;
+//	local_pos.dist_bottom_valid = true;
+//	local_pos.eph = 0;
+//	local_pos.epv = 0;
+//
+//
+//    if (_local_pos_pub < 0) {
+//        _local_pos_pub = orb_advertise(ORB_ID(vehicle_local_position), &local_pos);
+//
+//    } else {
+//        orb_publish(ORB_ID(vehicle_local_position), _local_pos_pub, &local_pos);
+//    }
+//}
+
 void
-MavlinkReceiver::handle_message_local_position_ned(mavlink_message_t *msg)
+MavlinkReceiver::handle_message_local_position_ned(mavlink_message_t *msg1, float yaw)
 {
     mavlink_local_position_ned_t local_pos_ned;
-    mavlink_msg_local_position_ned_decode(msg, &local_pos_ned);
+    mavlink_msg_local_position_ned_decode(msg1, &local_pos_ned);
 
     struct vehicle_local_position_s local_pos;
     memset(&local_pos, 0, sizeof(local_pos));
@@ -609,13 +650,13 @@ MavlinkReceiver::handle_message_local_position_ned(mavlink_message_t *msg)
     local_pos.vx = local_pos_ned.vx;
     local_pos.vy = local_pos_ned.vy;
     local_pos.vz = local_pos_ned.vz;
+	local_pos.yaw = yaw;	//local_pos_ned_system_global_offset.yaw;
 
     local_pos.xy_valid = true;
 	local_pos.v_xy_valid = true;
 	local_pos.xy_global = false;
 	local_pos.z_global = false;
 	local_pos.landed = false;
-	local_pos.yaw = 0;
 	local_pos.dist_bottom_valid = true;
 	local_pos.eph = 0;
 	local_pos.epv = 0;
@@ -629,7 +670,33 @@ MavlinkReceiver::handle_message_local_position_ned(mavlink_message_t *msg)
     }
 }
 
-void
+//void
+//MavlinkReceiver::handle_message_local_position_ned_system_global_offset(mavlink_message_t *msg)
+//{
+//	mavlink_local_position_ned_system_global_offset_t local_pos_ned_system_global_offset;
+//	mavlink_msg_local_position_ned_system_global_offset_decode(msg, &local_pos_ned_system_global_offset);
+//
+//
+//    struct vehicle_local_position_system_global_offset_s local_pos_glo_offset;
+//    memset(&local_pos_glo_offset, 0, sizeof(local_pos_glo_offset));
+//
+//    local_pos_glo_offset.timestamp = local_pos_ned_system_global_offset.time_boot_ms;
+//
+//    local_pos_glo_offset.x = local_pos_ned_system_global_offset.x;
+//    local_pos_glo_offset.y = local_pos_ned_system_global_offset.y;
+//    local_pos_glo_offset.z = local_pos_ned_system_global_offset.z;
+//
+//    local_pos_glo_offset.yaw = local_pos_ned_system_global_offset.yaw;
+//
+//    if (_local_pos_glo_offset_pub < 0) {
+//    	_local_pos_glo_offset_pub = orb_advertise(ORB_ID(vehicle_local_position_system_global_offset), &local_pos_glo_offset);
+//
+//    } else {
+//        orb_publish(ORB_ID(vehicle_local_position_system_global_offset), _local_pos_glo_offset_pub, &local_pos_glo_offset);
+//    }
+//}
+
+float
 MavlinkReceiver::handle_message_local_position_ned_system_global_offset(mavlink_message_t *msg)
 {
 	mavlink_local_position_ned_system_global_offset_t local_pos_ned_system_global_offset;
@@ -653,6 +720,7 @@ MavlinkReceiver::handle_message_local_position_ned_system_global_offset(mavlink_
     } else {
         orb_publish(ORB_ID(vehicle_local_position_system_global_offset), _local_pos_glo_offset_pub, &local_pos_glo_offset);
     }
+    return local_pos_ned_system_global_offset.yaw;
 }
 
 void

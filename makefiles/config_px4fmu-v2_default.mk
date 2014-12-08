@@ -133,7 +133,9 @@ MODULES		+= lib/launchdetection
 #MODULES		+= examples/math_demo
 # Tutorial code from
 # https://pixhawk.ethz.ch/px4/dev/hello_sky
-MODULES		+= examples/px4_simple_app
+#MODULES		+= examples/px4_simple_app
+MODULES		+= examples/mavlink_to_orb_pos
+MODULES		+= examples/mavlink_to_orb_pos_offset
 
 # Tutorial code from
 # https://pixhawk.ethz.ch/px4/dev/daemon

@@ -201,7 +201,7 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 	int vehicle_attitude_sub = orb_subscribe(ORB_ID(vehicle_attitude));
 
 	/* advertise */
-	orb_advert_t vehicle_local_position_pub = orb_advertise(ORB_ID(vehicle_local_position), &local_pos);
+//	orb_advert_t vehicle_local_position_pub = orb_advertise(ORB_ID(vehicle_local_position), &local_pos);
 
 	thread_running = true;
 
@@ -234,17 +234,25 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 		orb_check(vehicle_local_position_system_global_offset_sub, &updated);	// landing pad
 		if (updated) {
 
-			 orb_copy(ORB_ID(vehicle_local_position_system_global_offset), vehicle_local_position_system_global_offset_sub, &local_pos_coord);	// landing pad
-
+			orb_copy(ORB_ID(vehicle_local_position_system_global_offset), vehicle_local_position_system_global_offset_sub, &local_pos_coord);	// landing pad
 			t1 = hrt_absolute_time();
-
 			if (t2 != 0) {
 				freq = 1000000 / (t1-t2);
-
 				printf("freq = %6.2f, Hz \n\n", (double)freq);
 			}
-
 			t2 = t1;
+			printf("[mavlink_to_orb] vehicle_local_position"
+					"\n timestamp: %8.0f,"
+					"\n x: %8.4f, y: %8.4f, z: %8.4f, "
+					"\n yaw: %8.4f \n\n",
+				(double)local_pos_coord.timestamp,
+				(double)local_pos_coord.x,
+				(double)local_pos_coord.y,
+				(double)local_pos_coord.z,
+				(double)local_pos_coord.yaw);
+
+
+
 		}
 
 
@@ -285,7 +293,7 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			local_pos.surface_bottom_timestamp = 0;
 			local_pos.ref_timestamp = 0;
 
-			orb_publish(ORB_ID(vehicle_local_position), vehicle_local_position_pub, &local_pos);
+//			orb_publish(ORB_ID(vehicle_local_position), vehicle_local_position_pub, &local_pos);
 
 //			printf("local_pos.xy_valid = %d \n\n",local_pos.xy_valid);
 

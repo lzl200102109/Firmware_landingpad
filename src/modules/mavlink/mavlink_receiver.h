@@ -121,8 +121,10 @@ private:
 	void handle_message_manual_control(mavlink_message_t *msg);
 	void handle_message_heartbeat(mavlink_message_t *msg);
 	void handle_message_request_data_stream(mavlink_message_t *msg);
-	void handle_message_local_position_ned(mavlink_message_t *msg);
-	void handle_message_local_position_ned_system_global_offset(mavlink_message_t *msg);
+//	void handle_message_local_position_ned(mavlink_message_t *msg);
+	void handle_message_local_position_ned(mavlink_message_t *msg1, float yaw);
+//	void handle_message_local_position_ned_system_global_offset(mavlink_message_t *msg);
+	float handle_message_local_position_ned_system_global_offset(mavlink_message_t *msg);
 	void handle_message_hil_sensor(mavlink_message_t *msg);
 	void handle_message_hil_gps(mavlink_message_t *msg);
 	void handle_message_hil_state_quaternion(mavlink_message_t *msg);
